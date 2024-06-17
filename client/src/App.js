@@ -22,6 +22,9 @@ function AppContent() {
   const [uploadedData, setUploadedData] = useState();
   const [fileName, setFileName] = useState("");
   const [searchVal, setSearchVal] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(5);
+  const [pageCount, setPageCount] = useState();
 
   // Set up Axios to include the token in all requests
   Axios.interceptors.request.use(
@@ -53,10 +56,15 @@ function AppContent() {
   };
 
   const fetchBookList = async (page, limit) => {
-    await Axios.get(`http://localhost:3001/collection`)
+    await Axios.get(
+      `http://localhost:3001/collection?page=${page}&limit=${limit}`
+    )
       .then((response) => {
-        setBookList(response.data);
-        setProducts(response.data);
+        setBookList(response.data.resultCollection);
+        setProducts(response.data.resultCollection);
+        if (response.data.pageCount) {
+          setPageCount(response.data.pageCount);
+        }
       })
       .catch((error) => {
         console.error("Error fetching collection:", error);
@@ -65,8 +73,11 @@ function AppContent() {
 
   useEffect(() => {
     Axios.get("http://localhost:3001/collection").then((res) => {
-      setBookList(res.data);
-      setProducts(res.data);
+      setBookList(res.data.resultCollection);
+      setProducts(res.data.resultCollection);
+      if (res.data.pageCount) {
+        setPageCount(res.data.pageCount);
+      }
     });
   }, []);
 
@@ -163,6 +174,33 @@ function AppContent() {
     }
   };
 
+  const handleNext = () => {
+    if (page < pageCount) {
+      setPage((prevPage) => {
+        const newPage = prevPage + 1;
+        fetchBookList(newPage, limit);
+        return newPage;
+      });
+    }
+  };
+
+  const handlePrevious = () => {
+    if (page > 1) {
+      setPage((prevPage) => {
+        const newPage = Math.max(prevPage - 1, 1);
+        fetchBookList(newPage, limit);
+        return newPage;
+      });
+    }
+  };
+
+  const handleSelectChange = (e) => {
+    const newLimit = e.target.value;
+    setLimit(newLimit);
+    setPage(1); // Reset page to 1 when limit changes
+    fetchBookList(1, newLimit); // Fetch the first page with the new limit
+  };
+
   return (
     <div className="App">
       <h1>CRUD app for Book Collection</h1>
@@ -230,6 +268,49 @@ function AppContent() {
           >
             Search
           </button>
+        </div>
+        <div className="mx-0 my-0">
+          <select
+            className="bg-white divide-y divide-gray-100 rounded-lg shadow w-33 h-15 font-thin text-xs px-1 py-2 "
+            onChange={handleSelectChange}
+          >
+            <option
+              className="block px-4 py-1 hover:bg-gray-100 hover:text-white"
+              value={1}
+            >
+              1 per page
+            </option>
+            <option
+              className="block px-4 py-1 hover:bg-gray-100 hover:text-white"
+              value={2}
+            >
+              2 per page
+            </option>
+            <option
+              className="block px-4 py-1 hover:bg-gray-100 hover:text-white"
+              value={5}
+            >
+              5 per page
+            </option>
+            <option
+              className="block px-4 py-1 hover:bg-gray-100  hover:text-white"
+              value={10}
+            >
+              10 per page
+            </option>
+            <option
+              className="block px-4 py-1 hover:bg-gray-100  hover:text-white"
+              value={15}
+            >
+              15 per page
+            </option>
+            <option
+              className="block px-4 py-1 hover:bg-gray-100  hover:text-white"
+              value={20}
+            >
+              20 per page
+            </option>
+          </select>
         </div>
       </div>
 
@@ -321,6 +402,23 @@ function AppContent() {
               ))}
           </tbody>
         </table>
+        <div>
+          <button
+            className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-2"
+            onClick={handlePrevious}
+          >
+            &lt; previous
+          </button>
+          <button className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-2">
+            {page}
+          </button>
+          <button
+            className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-2"
+            onClick={handleNext}
+          >
+            next &gt;
+          </button>
+        </div>
       </div>
     </div>
   );

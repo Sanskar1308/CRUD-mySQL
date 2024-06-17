@@ -41,19 +41,81 @@ const authenticatetoken = async (req, res, next) => {
   }
 };
 
-app.get("/collection", authenticatetoken, async (req, res) => {
-  const userId = req.user.userId; // Extract userId from authenticated token
-  console.log(process.env.EMAIL);
-  try {
-    const [rows] = await connection
-      .promise()
-      .query("SELECT * FROM collection WHERE userId = ? ", [userId]);
-    res.send(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("An error occurred while fetching the collection.");
+function paginationResult(table) {
+  return async (req, res, next) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+
+    if (isNaN(page) || page <= 0) {
+      return res.status(400).send({ msg: "Invalid page number" });
+    }
+
+    if (isNaN(limit) || limit <= 0) {
+      return res.status(400).send({ msg: "Invalid limit" });
+    }
+
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+
+    const resultCollection = {};
+
+    try {
+      const userId = req.user.userId; // Extract userId from authenticated token
+
+      // Get the total number of documents that match the userId
+      const [totalResults] = await connection
+        .promise()
+        .query(`SELECT COUNT(*) as count FROM ?? WHERE userId = ?`, [
+          table,
+          userId,
+        ]);
+      const totalDocuments = totalResults[0].count;
+
+      resultCollection.totalUser = totalDocuments;
+      resultCollection.pageCount = Math.ceil(totalDocuments / limit);
+
+      if (startIndex > 0) {
+        resultCollection.previous = {
+          page: page - 1,
+          limit: limit,
+        };
+      }
+
+      if (endIndex < totalDocuments) {
+        resultCollection.next = {
+          page: page + 1,
+          limit: limit,
+        };
+      }
+
+      // Fetch the paginated results
+      const [results] = await connection
+        .promise()
+        .query(`SELECT * FROM ?? WHERE userId = ? LIMIT ? OFFSET ?`, [
+          table,
+          userId,
+          limit,
+          startIndex,
+        ]);
+
+      resultCollection.resultCollection = results;
+
+      res.paginatedResult = resultCollection;
+      next();
+    } catch (e) {
+      res.status(500).send({ msg: e.message });
+    }
+  };
+}
+
+app.get(
+  "/collection",
+  authenticatetoken,
+  paginationResult("collection"), // Replace with actual table name
+  async (req, res) => {
+    res.send(res.paginatedResult);
   }
-});
+);
 
 app.get("/fullCollection", authenticatetoken, async (req, res) => {
   const userId = req.user.userId; // Extract userId from authenticated token
